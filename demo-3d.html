@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jupiter × Solana — 3D Network Visualizer</title>
+<style>
+  :root {
+    --sol-purple: #9945FF;
+    --sol-green: #14F195;
+    --bg: #05060b;
+    --panel: rgba(10, 12, 20, 0.72);
+    --line: rgba(255, 255, 255, 0.08);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 700px at 50% -10%, #17123a 0%, var(--bg) 60%);
+    color: #eaf0ff;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  #stage { position: relative; width: 100vw; height: 100vh; }
+  #viz { display: block; width: 100%; height: 100%; cursor: grab; }
+
+  #controls {
+    position: fixed; top: 50%; left: 24px; transform: translateY(-50%);
+    width: 236px; padding: 18px 18px 16px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+    backdrop-filter: blur(14px); z-index: 10;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  #controls h2 {
+    margin: 0 0 3px; font-size: 11px; letter-spacing: .26em; font-weight: 800; color: #f4f7ff;
+  }
+  #controls p.sub { margin: 0 0 16px; font-size: 10px; letter-spacing: .16em; color: rgba(199,242,132,.75); }
+  .row { margin-bottom: 15px; }
+  .row label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 10px; letter-spacing: .14em; color: rgba(234,240,255,.55); margin-bottom: 7px;
+  }
+  .row label b { color: var(--sol-green); font-variant-numeric: tabular-nums; font-size: 11px; }
+  input[type=range] { width: 100%; height: 3px; -webkit-appearance: none; appearance: none;
+    background: linear-gradient(90deg, var(--sol-purple), var(--sol-green)); border-radius: 3px; outline: none; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #eaf0ff; border: 2px solid var(--sol-purple); cursor: pointer;
+    box-shadow: 0 0 12px rgba(153,69,255,.8);
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 12px; height: 12px; border-radius: 50%; background: #eaf0ff;
+    border: 2px solid var(--sol-purple); cursor: pointer;
+  }
+  .toggles { display: flex; gap: 7px; flex-wrap: wrap; }
+  .toggles button {
+    flex: 1 1 auto; padding: 7px 9px; font-size: 10px; letter-spacing: .1em; font-weight: 700;
+    color: rgba(234,240,255,.7); background: rgba(255,255,255,.04);
+    border: 1px solid var(--line); border-radius: 9px; cursor: pointer; transition: all .18s;
+  }
+  .toggles button:hover { background: rgba(153,69,255,.2); color: #fff; }
+  .toggles button.on { background: rgba(20,241,149,.16); border-color: rgba(20,241,149,.4); color: var(--sol-green); }
+  #readout {
+    margin-top: 4px; padding-top: 13px; border-top: 1px solid var(--line);
+    font-size: 9.5px; letter-spacing: .12em; color: rgba(234,240,255,.4); line-height: 1.7;
+  }
+  #readout b { color: rgba(234,240,255,.75); }
+  .hint { margin: 10px 0 0; font-size: 9.5px; line-height: 1.6; letter-spacing: .04em; color: rgba(234,240,255,.32); }
+  #poolCards { margin-top: 12px; display: grid; gap: 6px; }
+  .pc {
+    display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 9px;
+    background: rgba(255,255,255,.03); border: 1px solid var(--line); cursor: pointer; transition: all .18s;
+  }
+  .pc:hover { background: rgba(153,69,255,.16); transform: translateX(2px); }
+  .pc i { width: 8px; height: 8px; border-radius: 50%; }
+  .pc span { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; }
+  .pc em { margin-left: auto; font-style: normal; font-size: 10px; color: rgba(234,240,255,.45); }
+  #loader {
+    position: fixed; inset: 0; display: grid; place-items: center; z-index: 50;
+    background: var(--bg); transition: opacity .5s; font-size: 11px; letter-spacing: .3em; color: var(--sol-green);
+  }
+  #loader.hidden { opacity: 0; pointer-events: none; }
+  @media (max-width: 820px) { #controls { display: none; } }
+</style>
+</head>
+<body>
+  <div id="stage"><canvas id="viz"></canvas></div>
+
+  <aside id="controls">
+    <h2>JUPITER × SOLANA</h2>
+    <p class="sub">3D NETWORK VISUALIZER</p>
+
+    <div class="row">
+      <label>THROUGHPUT <b id="tpsOut">2 800 TPS</b></label>
+      <input id="tps" type="range" min="0" max="8000" step="50" value="2800" />
+    </div>
+
+    <div class="row">
+      <label>BLOOM <b id="bloomOut">0.92</b></label>
+      <input id="bloom" type="range" min="0" max="2" step="0.02" value="0.92" />
+    </div>
+
+    <div class="row">
+      <label>EXPOSURE <b id="expOut">1.06</b></label>
+      <input id="exp" type="range" min="0.4" max="2" step="0.02" value="1.06" />
+    </div>
+
+    <div class="row">
+      <div class="toggles">
+        <button id="spin" class="on">AUTO-ORBIT</button>
+        <button id="grid" class="on">GRID</button>
+        <button id="labels" class="on">LABELS</button>
+        <button id="hud">HUD</button>
+      </div>
+    </div>
+
+    <div id="poolCards"></div>
+
+    <div id="readout">
+      FPS <b id="fps">—</b> · DRAW <b id="draws">—</b> · TRIS <b id="tris">—</b><br />
+      POOLS <b id="pools">3</b> · PARTICLES <b id="parts">—</b>
+    </div>
+    <p class="hint">Pool nodes are clickable in the scene and in the overlay legend.</p>
+  </aside>
+
+  <div id="loader">INITIALISING WEBGL…</div>
+
+  <script type="module">
+    import { createSolanaVisualizer, DEFAULT_POOLS } from './solana-jupiter-3d.js';
+
+    const canvas = document.getElementById('viz');
+    const viz = await createSolanaVisualizer(canvas, {
+      tps: 2800,
+      hud: true,
+      onPoolSelect: (pool) => console.log('[viz] selected', pool.name, pool.tvl),
+    });
+
+    document.getElementById('loader').classList.add('hidden');
+
+    /* --- controls ---------------------------------------------------- */
+    const tps = document.getElementById('tps');
+    const tpsOut = document.getElementById('tpsOut');
+    tps.addEventListener('input', () => {
+      const v = Number(tps.value);
+      viz.setTPS(v);
+      tpsOut.textContent = `${v.toLocaleString('en-US').replace(/,/g, ' ')} TPS`;
+    });
+
+    const bloom = document.getElementById('bloom');
+    const bloomOut = document.getElementById('bloomOut');
+    bloom.addEventListener('input', () => {
+      viz.setBloom({ strength: Number(bloom.value) });
+      bloomOut.textContent = Number(bloom.value).toFixed(2);
+    });
+
+    const exp = document.getElementById('exp');
+    const expOut = document.getElementById('expOut');
+    exp.addEventListener('input', () => {
+      viz.options.exposure = Number(exp.value);
+      viz._compositeMaterial.uniforms.uExposure.value = Number(exp.value);
+      expOut.textContent = Number(exp.value).toFixed(2);
+    });
+
+    const toggle = (el, fn) =>
+      el.addEventListener('click', () => {
+        el.classList.toggle('on');
+        fn(el.classList.contains('on'));
+      });
+
+    toggle(document.getElementById('spin'), (on) => viz.setAutoRotate(on));
+    toggle(document.getElementById('grid'), (on) => {
+      if (viz._grid) viz._grid.visible = on;
+    });
+    toggle(document.getElementById('labels'), (on) => viz.setLabelsVisible(on));
+    toggle(document.getElementById('hud'), (on) => viz.setHudVisible(on));
+
+    /* --- pool cards --------------------------------------------------- */
+    const cards = document.getElementById('poolCards');
+    DEFAULT_POOLS.forEach((pool) => {
+      const card = document.createElement('div');
+      card.className = 'pc';
+      card.innerHTML = `<i style="background:${pool.color};box-shadow:0 0 10px ${pool.color}"></i>
+        <span>${pool.name}</span><em>${pool.tvl}</em>`;
+      card.addEventListener('click', () => {
+        viz.selectPool(pool.id);
+        viz.focusPool(pool.id);
+      });
+      cards.appendChild(card);
+    });
+
+    /* --- readout ------------------------------------------------------- */
+    const fpsEl = document.getElementById('fps');
+    const drawsEl = document.getElementById('draws');
+    const trisEl = document.getElementById('tris');
+    const partsEl = document.getElementById('parts');
+    viz.on('tick', (stats) => {
+      fpsEl.textContent = stats.fps;
+      drawsEl.textContent = stats.drawCalls;
+      trisEl.textContent = stats.triangles.toLocaleString('en-US');
+      partsEl.textContent = viz._particleGeometry.drawRange.count.toLocaleString('en-US');
+    });
+
+    // Expose for debugging / automated tests.
+    window.__viz = viz;
+  </script>
+</body>
+</html>
